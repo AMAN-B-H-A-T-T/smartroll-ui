@@ -1,27 +1,21 @@
-import { PayloadAction, createSlice } from '@reduxjs/toolkit'
+import {createSlice, PayloadAction  } from '@reduxjs/toolkit' 
 
 interface loaderInteface {
-  LOADER_STATE: boolean
-  message: string | null
+    LOADER_STATE : boolean   
 }
 
 const initialState: loaderInteface = {
-  LOADER_STATE: false,
-  message: null,
+    LOADER_STATE: false
 }
 
 const loaderSlice = createSlice({
-  name: 'loader',
-  initialState: initialState,
-  reducers: {
-    setLoader: (
-      state,
-      action: PayloadAction<{ state: boolean; message: string | null }>,
-    ) => {
-      state.LOADER_STATE = action.payload.state
-      state.message = action.payload.message
-    },
-  },
+    name : 'loader',
+    initialState : initialState,
+    reducers : {
+        setLoader : (state, action : PayloadAction<boolean>) => {
+            state.LOADER_STATE = action.payload
+        }
+    }
 })
 export const { setLoader } = loaderSlice.actions
 export default loaderSlice.reducer

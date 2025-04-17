@@ -12,8 +12,6 @@ import { toast } from 'sonner'
 
 import useAPI from '@hooks/useApi'
 
-import { createWavBlob } from '@utils/helpers/recorder_process'
-
 import { LectureDetails } from 'types/common'
 
 export const useTeacherDashbord = () => {
@@ -107,12 +105,6 @@ export const useTeacherDashbord = () => {
       //todo: create the handler for this
       const { data } = message.data
       onGoingSessionDataHandler(data)
-      const stopFunction = await startTeacherStreaming(
-        newSocket,
-        session_id,
-        StoredTokens?.accessToken?.replace('Bearer ', '') as string,
-      )
-      setStopStreamFunction(() => stopFunction) // Store the stop function
     })
 
     newSocket.on('mark_attendance', (attendanceData: any) => {
@@ -178,24 +170,9 @@ export const useTeacherDashbord = () => {
       `select-${lecture_slug}${classroomSlug}`,
     ) as HTMLSelectElement
     try {
-      dispatch(
-        setLoader({
-          state: true,
-          message: 'Starting the session. Please do not refresh the page!',
-        }),
-      )
-
       const formData = new FormData()
       formData.append('lecture_slug', lecture_slug)
       formData.append('classroom_slug', selectedClassRoom.value)
-      // if (session_status === 'ongoing') {
-      //   const stopFunction = await startTeacherStreaming(
-      //     socket,
-      //     session_id,
-      //     StoredTokens?.accessToken?.replace('Bearer ', '') as string,
-      //   )
-      //   setStopStreamFunction(() => stopFunction) // Store the stop function
-      // }
       const header = {
         'ngrok-skip-browser-warning': true,
         Authorization: `Bearer ${StoredTokens.accessToken}`,
@@ -613,62 +590,4 @@ function getWeekDates() {
   }
 
   return result
-}
-
-const startTeacherStreaming = async (
-  socket: any,
-  session_id: string,
-  auth_token: string,
-) => {
-  const audioContext = new AudioContext()
-  const sampleRate = audioContext.sampleRate
-  const chunkDuration = 1000 // 1 second
-  const startTime = Date.now() // Record start time
-  let chunkIndex = 0
-
-  await audioContext.audioWorklet.addModule('recorder-processor.js')
-
-  const mic = await navigator.mediaDevices.getUserMedia({ audio: true })
-  const source = audioContext.createMediaStreamSource(mic)
-
-  const recorderNode = new AudioWorkletNode(
-    audioContext,
-    'recorder-processor',
-    {
-      processorOptions: {
-        duration: chunkDuration / 1000,
-      },
-    },
-  )
-
-  source.connect(recorderNode)
-  recorderNode.connect(audioContext.destination)
-
-  let stopStream = false
-
-  recorderNode.port.onmessage = (event) => {
-    const chunk = event.data[0] // Float32Array
-    const wavBlob = createWavBlob(chunk, sampleRate)
-
-    const timestamp = startTime + chunkIndex * chunkDuration
-    chunkIndex++
-
-    if (!stopStream) {
-      console.log('object')
-      socket.emit('incoming_audio_chunks', {
-        client: 'FE',
-        session_id,
-        auth_token,
-        blob: wavBlob,
-        timestamp,
-      })
-    }
-  }
-
-  return async () => {
-    stopStream = true
-    recorderNode.disconnect()
-    source.disconnect()
-    await audioContext.close()
-  }
 }

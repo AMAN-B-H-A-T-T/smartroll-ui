@@ -9,8 +9,6 @@ import { toast } from 'sonner'
 
 import useAPI from '@hooks/useApi'
 
-import { createWavBlob, flattenChunks } from '@utils/helpers/recorder_process'
-
 const useStudentDashboard = () => {
   const [permission_state, set_permission_state] = useState(false)
   const [lectureDetails, setLectureDetails] = useState<any>([])
@@ -91,12 +89,6 @@ const useStudentDashboard = () => {
     lecture_slug: string,
     session_id: string,
   ) => {
-    dispatch(
-      setLoader({
-        state: true,
-        message: 'Marking Attendance. Please do not refresh this page!',
-      }),
-    )
     btn.disabled = true
     if (!navigator.geolocation) {
       toast.error('Geolocation is not supported by this browser.')
@@ -104,26 +96,12 @@ const useStudentDashboard = () => {
       return
     }
     try {
-      const { error, message, blob, startTimestamp }: any =
-        await startStudentRecording()
-      if (error) {
-        btn.disabled = false
-        dispatch(setLoader({ state: false, message: null }))
-        return toast.error(message)
-      }
       navigator.geolocation.getCurrentPosition(
         async (positions) => {
           const latitude: any = positions.coords.latitude
           const longitude: any = positions.coords.longitude
-
-          const formData = new FormData()
-
-          formData.append('latitude', latitude)
-          formData.append('longitude', longitude)
-          formData.append('lecture_slug', lecture_slug)
-          formData.append('audio', blob, 'recording.wav')
-          formData.append('start_time', startTimestamp)
           const headers = {
+            'Content-Type': 'application/json',
             'ngrok-skip-browser-warning': true,
           }
           const axiosInstance = axios.create()
@@ -133,7 +111,11 @@ const useStudentDashboard = () => {
             '/manage/session/mark_attendance_for_student/',
             'post',
             headers,
-            formData,
+            {
+              lecture_slug: lecture_slug,
+              latitude: latitude,
+              longitude: longitude,
+            },
             null,
           )
           if (response_obj.error === false) {
@@ -152,7 +134,6 @@ const useStudentDashboard = () => {
                   `badge_${lecture_slug}${session_id}`,
                 ) as HTMLElement
                 presentBadge.classList.remove('hidden')
-                presentBadge.classList.add('flex')
               } else {
                 btn.disabled = false
               }
@@ -172,12 +153,6 @@ const useStudentDashboard = () => {
       )
     } catch (error) {
       btn.disabled = false
-      dispatch(
-        setLoader({
-          state: false,
-          message: null,
-        }),
-      )
       toast.error(
         'Location services are not available, Please enable it from you browser',
       )
@@ -242,79 +217,3 @@ const useStudentDashboard = () => {
   }
 }
 export default useStudentDashboard
-
-const startStudentRecording = async (duration = 5000) => {
-  return new Promise<any>(async (resolve) => {
-    const audioContext = new AudioContext()
-    const sampleRate = audioContext.sampleRate
-    const chunkDuration = 5000 // 5s per chunk
-
-    let startTimestamp = 0
-
-    try {
-      await audioContext.audioWorklet.addModule('recorder-processor.js')
-    } catch (err) {
-      resolve({
-        error: true,
-        message: `Failed to load AudioWorklet module: ${err}`,
-        blob: null,
-      })
-      return
-    }
-
-    let mic: MediaStream
-    try {
-      mic = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      })
-    } catch (err) {
-      resolve({
-        error: true,
-        message:
-          'Microphone permission denied or not available. Please allow it from site settings.',
-        blob: null,
-      })
-      return
-    }
-
-    const source = audioContext.createMediaStreamSource(mic)
-
-    const recorderNode = new AudioWorkletNode(
-      audioContext,
-      'recorder-processor',
-      {
-        processorOptions: { duration: chunkDuration / 1000 },
-      },
-    )
-
-    source.connect(recorderNode)
-    recorderNode.connect(audioContext.destination)
-
-    let recordedData: any[] = []
-
-    startTimestamp = Date.now()
-
-    recorderNode.port.onmessage = (event) => {
-      recordedData.push(event.data[0])
-    }
-
-    setTimeout(() => {
-      recorderNode.disconnect()
-      source.disconnect()
-      audioContext.close()
-
-      const audioBuffer = flattenChunks(recordedData)
-      const wavBlob = createWavBlob(audioBuffer, sampleRate)
-      resolve({
-        error: false,
-        message: 'Recording successful.',
-        blob: wavBlob,
-        startTimestamp,
-      })
-    }, duration)
-  })
-}

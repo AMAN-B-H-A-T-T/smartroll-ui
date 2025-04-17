@@ -49,7 +49,7 @@ const useAPI = () => {
     body: any = null,
     params: any = null,
   ): Promise<CallAPIResponse> => {
-    dispatch(setLoader({ state: true, message: null }))
+    dispatch(setLoader(true))
     headers['Authorization'] = `Bearer ${tokens.accessToken}`
 
     try {
@@ -61,7 +61,7 @@ const useAPI = () => {
         body,
         params,
       )
-      dispatch(setLoader({ state: false, message: null }))
+      dispatch(setLoader(false))
       return { error: false, response }
     } catch (error: any) {
       if (error.response && error.response.status === 401) {
@@ -104,24 +104,16 @@ const useAPI = () => {
           }
           dispatch(setAuth(token))
           navigate('/login')
-          dispatch(setLoader({ state: false, message: null }))
+          dispatch(setLoader(false))
           return {
             error: true,
-            errorMessage: {
-              data: null,
-              error: true,
-              message: 'Token Expired',
-              statusCode: result.status,
-            },
+            errorMessage: { data: null, error: true, message: 'Token Expired', statusCode: result.status },
           }
         }
       } else {
         // Handle other errors
-        dispatch(setLoader({ state: false, message: null }))
-        const errorResponse = {
-          ...error.response?.data,
-          statusCode: error.response.status,
-        }
+        dispatch(setLoader(false))
+        const errorResponse = { ...error.response?.data, statusCode: error.response.status }
 
         return {
           error: true,
@@ -131,7 +123,7 @@ const useAPI = () => {
     }
 
     // In case of an unexpected issue, return a default response
-    dispatch(setLoader({ state: false, message: null }))
+    dispatch(setLoader(false))
     return {
       error: true,
       errorMessage: {
@@ -156,14 +148,19 @@ const makeRequest = async (
   params: any = null,
 ): Promise<AxiosResponse> => {
   if (method === 'get') {
-    return await reqInstance.get(`${window.base_url}${endpoint}`, {
-      headers: headers,
-      params,
-    })
+    return await reqInstance.get(
+      `${window.base_url}${endpoint}`,
+      {
+        headers: headers,
+        params,
+      },
+    )
   } else if (method === 'post') {
-    return await reqInstance.post(`${window.base_url}${endpoint}`, body, {
-      headers,
-    })
+    return await reqInstance.post(
+      `${window.base_url}${endpoint}`,
+      body,
+      { headers },
+    )
   } else {
     throw new Error('Invalid HTTP method')
   }
@@ -186,6 +183,7 @@ const expireToken = async (
     return response.data
   } catch (error: any) {
     if (error.response?.status === 401) {
+
       return { action: 'tokenExpired', status: error.response.status }
     }
     throw error
